@@ -63,7 +63,7 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.allowed_emails
-    where email = lower(check_email)
+    where lower(email) = lower(check_email)
   );
 $$;
 
@@ -84,7 +84,7 @@ create policy "allowed users can read entries"
   to authenticated
   using (exists (
     select 1 from public.allowed_emails a
-    where a.email = lower(auth.jwt() ->> 'email')
+    where lower(a.email) = lower(auth.jwt() ->> 'email')
   ));
 
 drop policy if exists "allowed users can delete entries" on public.entries;
@@ -93,7 +93,7 @@ create policy "allowed users can delete entries"
   to authenticated
   using (exists (
     select 1 from public.allowed_emails a
-    where a.email = lower(auth.jwt() ->> 'email')
+    where lower(a.email) = lower(auth.jwt() ->> 'email')
   ));
 
 -- entries : écriture (insert + upsert, formulaire du dashboard) réservée aux
@@ -105,7 +105,7 @@ create policy "allowed users can insert entries"
   to authenticated
   with check (exists (
     select 1 from public.allowed_emails a
-    where a.email = lower(auth.jwt() ->> 'email')
+    where lower(a.email) = lower(auth.jwt() ->> 'email')
   ));
 
 drop policy if exists "allowed users can update entries via upsert" on public.entries;
@@ -114,11 +114,11 @@ create policy "allowed users can update entries via upsert"
   to authenticated
   using (exists (
     select 1 from public.allowed_emails a
-    where a.email = lower(auth.jwt() ->> 'email')
+    where lower(a.email) = lower(auth.jwt() ->> 'email')
   ))
   with check (exists (
     select 1 from public.allowed_emails a
-    where a.email = lower(auth.jwt() ->> 'email')
+    where lower(a.email) = lower(auth.jwt() ->> 'email')
   ));
 
 -- anciennes policies "anon can insert/update entries" (skill désactivé) :
