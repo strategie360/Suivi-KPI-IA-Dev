@@ -34,12 +34,16 @@ function parseNumber(input: string): number | null {
 
 export default function Dashboard({
   initialEntries,
-  userEmail
+  userEmail,
+  mock = false
 }: {
   initialEntries: Entry[];
   userEmail: string;
+  mock?: boolean;
 }) {
-  const supabase = useMemo(() => createClient(), []);
+  // Mode démo : pas de client Supabase du tout (pas besoin des variables
+  // d'env NEXT_PUBLIC_SUPABASE_*), tout reste en mémoire côté React.
+  const supabase = useMemo(() => (mock ? null : createClient()), [mock]);
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [devFilter, setDevFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
@@ -64,6 +68,8 @@ export default function Dashboard({
   }, [toast]);
 
   useEffect(() => {
+    if (!supabase) return; // mode démo : rien à écouter
+
     const channel = supabase
       .channel("entries-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "entries" }, () => {
@@ -149,6 +155,13 @@ export default function Dashboard({
 
   async function handleDelete(entry: Entry) {
     if (!confirm(`Supprimer la saisie ${entry.ticket_ref} du ${entry.entry_date} ?`)) return;
+
+    if (!supabase) {
+      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      setToast("Saisie supprimée (mode démo).");
+      return;
+    }
+
     const { error } = await supabase.from("entries").delete().eq("id", entry.id);
     if (error) {
       setToast("Suppression impossible (droits insuffisants ?).");
@@ -270,6 +283,41 @@ export default function Dashboard({
       temps_ia_h: tempsIa
     };
 
+    if (!supabase) {
+      // Mode démo : pas de réseau, on met juste à jour l'état local et on
+      // ne recharge pas la page (ça effacerait les données en mémoire).
+      const today = new Date().toISOString().slice(0, 10);
+      setEntries((prev) => {
+        if (editingId) {
+          return prev.map((e) => (e.id === editingId ? { ...e, ...fields } : e));
+        }
+        const dup = prev.findIndex(
+          (e) => e.ticket_ref === fields.ticket_ref && e.entry_date === today && e.developer_name === userEmail
+        );
+        const newEntry: Entry = {
+          id: dup !== -1 ? prev[dup].id : `mock-${Date.now()}`,
+          ticket_title: "",
+          developer_name: userEmail,
+          entry_date: today,
+          notes: "",
+          source: "web",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...fields
+        };
+        if (dup !== -1) {
+          const next = prev.slice();
+          next[dup] = newEntry;
+          return next;
+        }
+        return [newEntry, ...prev];
+      });
+      setSaving(false);
+      closeForm();
+      setToast(editingId ? `Saisie ${parsedTicket.ticketRef} mise à jour (démo).` : `Saisie enregistrée pour ${parsedTicket.ticketRef} (démo).`);
+      return;
+    }
+
     const { error } = editingId
       ? await supabase.from("entries").update(fields).eq("id", editingId)
       : await supabase.from("entries").upsert(
@@ -295,6 +343,7 @@ export default function Dashboard({
   }
 
   async function handleLogout() {
+    if (!supabase) return; // mode démo : pas de session à fermer
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
@@ -303,11 +352,20 @@ export default function Dashboard({
     <div className="mx-auto max-w-6xl px-6 pb-16 pt-5">
       <header className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-text">Suivi KPI IA Dev</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-text">Suivi KPI IA Dev</h1>
+            {mock && (
+              <span className="rounded-full border border-accent bg-surface-alt px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-accent">
+                Mode démo
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-text-muted">
             Tous les tickets Jira de l&apos;équipe — charge estimée vs réelle, impact de l&apos;IA sur le développement
           </p>
-          <p className="mt-1 text-xs text-text-faint">Connecté en tant que {userEmail}</p>
+          <p className="mt-1 text-xs text-text-faint">
+            {mock ? "Données locales, non persistées — aucun appel à Supabase." : `Connecté en tant que ${userEmail}`}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -322,12 +380,14 @@ export default function Dashboard({
           >
             Exporter Excel
           </button>
+          {!mock && (
           <button
             onClick={handleLogout}
             className="rounded-lg border border-transparent px-3.5 py-2 text-sm text-text-muted transition hover:bg-surface-alt"
           >
             Déconnexion
           </button>
+          )}
         </div>
       </header>
 

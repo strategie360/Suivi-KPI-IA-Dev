@@ -52,6 +52,13 @@ npm run dev
 Ouvrez http://localhost:3000 — vous serez redirigé vers `/login`. Connectez-vous avec un
 email présent dans `allowed_emails`.
 
+**Tester sans Supabase ni login** : mettez `NEXT_PUBLIC_MOCK=1` dans `.env.local` (redémarrez
+`npm run dev`). Le login et Supabase sont entièrement contournés — quelques saisies d'exemple
+en mémoire, un bandeau **Mode démo** dans l'en-tête, et toute action (ajout, modification,
+suppression) reste locale au navigateur, perdue au rechargement. Pratique pour itérer sur
+l'UI sans dépendre d'un projet Supabase configuré. Retirez la variable (ou mettez-la à `0`)
+pour repasser en mode normal.
+
 > Le service d'envoi d'email intégré de Supabase est très limité en débit (quelques emails/heure) —
 > largement suffisant pour un seul test, mais vous tomberez vite sur une erreur `429 Too Many
 > Requests` en itérant. Configurez un SMTP custom (voir plus bas) avant d'ouvrir l'accès à

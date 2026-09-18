@@ -2,8 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Dashboard from "@/components/Dashboard";
 import type { Entry } from "@/lib/types";
+import { MOCK_MODE, MOCK_USER_EMAIL, initialMockEntries } from "@/lib/mock";
 
 export default async function Home() {
+  if (MOCK_MODE) {
+    return <Dashboard initialEntries={initialMockEntries} userEmail={MOCK_USER_EMAIL} mock />;
+  }
+
   const supabase = createClient();
 
   const {
