@@ -96,26 +96,35 @@ create policy "allowed users can delete entries"
     where a.email = lower(auth.jwt() ->> 'email')
   ));
 
--- entries : écriture (insert + upsert) ouverte à la clé "anon" — c'est ce que
--- le skill /log-kpi-ia utilise, embarquée directement dans SKILL.md pour que
--- chaque développeur puisse l'utiliser sans configuration. La clé "anon" est
--- conçue par Supabase pour être publique (elle circule déjà dans le bundle
--- JS du site) ; la portée de ce qu'elle permet est strictement définie par
--- ces policies RLS, pas par le secret de la clé — elle ne donne accès qu'à
--- écrire des saisies, rien d'autre (pas de lecture, pas de suppression, pas
--- d'accès à allowed_emails).
-drop policy if exists "anon can insert entries" on public.entries;
-create policy "anon can insert entries"
+-- entries : écriture (insert + upsert, formulaire du dashboard) réservée aux
+-- emails de la liste blanche, même règle que la lecture/suppression — la
+-- saisie se fait exclusivement via le site, plus de saisie hors-ligne (skill).
+drop policy if exists "allowed users can insert entries" on public.entries;
+create policy "allowed users can insert entries"
   on public.entries for insert
-  to anon
-  with check (true);
+  to authenticated
+  with check (exists (
+    select 1 from public.allowed_emails a
+    where a.email = lower(auth.jwt() ->> 'email')
+  ));
 
-drop policy if exists "anon can update entries via upsert" on public.entries;
-create policy "anon can update entries via upsert"
+drop policy if exists "allowed users can update entries via upsert" on public.entries;
+create policy "allowed users can update entries via upsert"
   on public.entries for update
-  to anon
-  using (true)
-  with check (true);
+  to authenticated
+  using (exists (
+    select 1 from public.allowed_emails a
+    where a.email = lower(auth.jwt() ->> 'email')
+  ))
+  with check (exists (
+    select 1 from public.allowed_emails a
+    where a.email = lower(auth.jwt() ->> 'email')
+  ));
+
+-- anciennes policies "anon can insert/update entries" (skill désactivé) :
+-- supprimées si présentes d'une exécution précédente de ce script.
+drop policy if exists "anon can insert entries" on public.entries;
+drop policy if exists "anon can update entries via upsert" on public.entries;
 
 -- allowed_emails : aucune policy pour anon/authenticated -> table illisible
 -- depuis le client (seule is_allowed_email(), en SECURITY DEFINER, y accède).

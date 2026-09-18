@@ -19,6 +19,19 @@ function projectOf(e: Pick<Entry, "project" | "ticket_ref">) {
   return m ? m[0].toUpperCase() : "—";
 }
 
+function parseTicketRef(input: string): { ticketRef: string; project: string } | null {
+  const m = /([A-Za-z][A-Za-z0-9]*)-(\d+)/.exec(input.trim());
+  if (!m) return null;
+  return { ticketRef: `${m[1].toUpperCase()}-${m[2]}`, project: m[1].toUpperCase() };
+}
+
+function parseNumber(input: string): number | null {
+  const m = /-?\d+(?:[.,]\d+)?/.exec(input.trim());
+  if (!m) return null;
+  const n = parseFloat(m[0].replace(",", "."));
+  return Number.isNaN(n) ? null : n;
+}
+
 export default function Dashboard({
   initialEntries,
   userEmail
@@ -33,6 +46,15 @@ export default function Dashboard({
   const [period, setPeriod] = useState("30");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [ticketInput, setTicketInput] = useState("");
+  const [estimInput, setEstimInput] = useState("");
+  const [docInput, setDocInput] = useState("");
+  const [iterInput, setIterInput] = useState("");
+  const [iaInput, setIaInput] = useState("");
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -177,6 +199,72 @@ export default function Dashboard({
     XLSX.writeFile(wb, `suivi-kpi-ia_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
+  async function handleSubmitEntry(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError("");
+
+    const parsedTicket = parseTicketRef(ticketInput);
+    const estimation = parseNumber(estimInput);
+    const pctDoc = parseNumber(docInput);
+    const pctIter = parseNumber(iterInput);
+    const tempsIa = parseNumber(iaInput);
+
+    if (!parsedTicket) {
+      setFormError("Ticket invalide — collez l'URL Jira ou une référence du type PROJ-1234.");
+      return;
+    }
+    if (estimation === null || estimation < 0) {
+      setFormError("Estimation invalide.");
+      return;
+    }
+    if (pctDoc === null || pctDoc < 0 || pctDoc > 100) {
+      setFormError("% documentation doit être entre 0 et 100.");
+      return;
+    }
+    if (pctIter === null || pctIter < 0 || pctIter > 100) {
+      setFormError("% itérations doit être entre 0 et 100.");
+      return;
+    }
+    if (tempsIa === null || tempsIa < 0) {
+      setFormError("Temps IA invalide.");
+      return;
+    }
+
+    setSaving(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const { error } = await supabase.from("entries").upsert(
+      {
+        ticket_ref: parsedTicket.ticketRef,
+        ticket_title: "",
+        project: parsedTicket.project,
+        developer_name: userEmail,
+        entry_date: today,
+        estimation_h: estimation,
+        temps_reel_h: Math.max(0, estimation - tempsIa),
+        pct_documentation: pctDoc,
+        pct_iterations: pctIter,
+        temps_ia_h: tempsIa,
+        notes: "",
+        source: "web"
+      },
+      { onConflict: "ticket_ref,entry_date,developer_name" }
+    );
+    setSaving(false);
+
+    if (error) {
+      setFormError("Écriture refusée par la base — droits insuffisants ou policies RLS non à jour.");
+      return;
+    }
+
+    setTicketInput("");
+    setEstimInput("");
+    setDocInput("");
+    setIterInput("");
+    setIaInput("");
+    setShowForm(false);
+    setToast(`Saisie enregistrée pour ${parsedTicket.ticketRef}.`);
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -194,6 +282,12 @@ export default function Dashboard({
         </div>
         <div className="flex gap-2">
           <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
+          >
+            + Nouvelle saisie
+          </button>
+          <button
             onClick={handleExport}
             className="rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text transition hover:border-accent"
           >
@@ -207,6 +301,72 @@ export default function Dashboard({
           </button>
         </div>
       </header>
+
+      {showForm && (
+        <form
+          onSubmit={handleSubmitEntry}
+          className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border-2 border-accent bg-surface p-3.5 shadow-sm"
+        >
+          <Field label="Ticket Jira (URL ou réf.)" className="min-w-[240px] flex-1">
+            <input
+              type="text"
+              value={ticketInput}
+              onChange={(e) => setTicketInput(e.target.value)}
+              placeholder="https://jira.totalenergies.com/browse/PROJ-1234"
+              className="select"
+              autoFocus
+            />
+          </Field>
+          <Field label="Estimation (h)">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={estimInput}
+              onChange={(e) => setEstimInput(e.target.value)}
+              placeholder="10h"
+              className="select w-24"
+            />
+          </Field>
+          <Field label="% Documentation">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={docInput}
+              onChange={(e) => setDocInput(e.target.value)}
+              placeholder="10%"
+              className="select w-24"
+            />
+          </Field>
+          <Field label="% Itérations">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={iterInput}
+              onChange={(e) => setIterInput(e.target.value)}
+              placeholder="30%"
+              className="select w-24"
+            />
+          </Field>
+          <Field label="Temps IA (h)">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={iaInput}
+              onChange={(e) => setIaInput(e.target.value)}
+              placeholder="1h"
+              className="select w-24"
+            />
+          </Field>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-60"
+          >
+            {saving ? "Enregistrement…" : "Enregistrer"}
+          </button>
+          {formError && <p className="w-full text-sm text-bad">{formError}</p>}
+        </form>
+      )}
 
       <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-3.5 shadow-sm">
         <Field label="Développeur">
@@ -315,9 +475,8 @@ export default function Dashboard({
           <div className="px-6 py-14 text-center text-text-muted">
             <div className="mb-1.5 text-sm font-semibold text-text">Aucune saisie pour l&apos;instant</div>
             <p className="mx-auto max-w-md text-sm">
-              Ce dashboard se remplit automatiquement : un développeur lance le skill{" "}
-              <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-xs">/log-kpi-ia</code> dans Claude
-              Code sur un ticket Jira, et la saisie arrive ici sans ressaisie manuelle.
+              Cliquez sur <strong>+ Nouvelle saisie</strong> ci-dessus pour logger votre premier
+              ticket : URL ou réf. Jira, estimation, % documentation, % itérations, temps IA.
             </p>
           </div>
         ) : (
