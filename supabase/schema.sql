@@ -70,6 +70,29 @@ $$;
 revoke all on function public.is_allowed_email(text) from public;
 grant execute on function public.is_allowed_email(text) to anon, authenticated;
 
+-- Variante sans argument, pour les policies RLS ci-dessous : vérifie l'email
+-- du JWT de la requête courante. SECURITY DEFINER est essentiel ici — sans
+-- ça, une policy sur `entries` qui interroge `allowed_emails` directement se
+-- heurterait à la RLS de `allowed_emails` elle-même (aucune policy de
+-- lecture pour authenticated/anon) et ne verrait donc jamais aucune ligne,
+-- faisant échouer insert/update/select/delete sur `entries` pour tout le
+-- monde, quel que soit le contenu réel de la liste blanche.
+create or replace function public.current_user_is_allowed()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.allowed_emails
+    where lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+$$;
+
+revoke all on function public.current_user_is_allowed() from public;
+grant execute on function public.current_user_is_allowed() to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
@@ -82,19 +105,13 @@ drop policy if exists "allowed users can read entries" on public.entries;
 create policy "allowed users can read entries"
   on public.entries for select
   to authenticated
-  using (exists (
-    select 1 from public.allowed_emails a
-    where lower(a.email) = lower(auth.jwt() ->> 'email')
-  ));
+  using (public.current_user_is_allowed());
 
 drop policy if exists "allowed users can delete entries" on public.entries;
 create policy "allowed users can delete entries"
   on public.entries for delete
   to authenticated
-  using (exists (
-    select 1 from public.allowed_emails a
-    where lower(a.email) = lower(auth.jwt() ->> 'email')
-  ));
+  using (public.current_user_is_allowed());
 
 -- entries : écriture (insert + upsert, formulaire du dashboard) réservée aux
 -- emails de la liste blanche, même règle que la lecture/suppression — la
@@ -103,23 +120,14 @@ drop policy if exists "allowed users can insert entries" on public.entries;
 create policy "allowed users can insert entries"
   on public.entries for insert
   to authenticated
-  with check (exists (
-    select 1 from public.allowed_emails a
-    where lower(a.email) = lower(auth.jwt() ->> 'email')
-  ));
+  with check (public.current_user_is_allowed());
 
 drop policy if exists "allowed users can update entries via upsert" on public.entries;
 create policy "allowed users can update entries via upsert"
   on public.entries for update
   to authenticated
-  using (exists (
-    select 1 from public.allowed_emails a
-    where lower(a.email) = lower(auth.jwt() ->> 'email')
-  ))
-  with check (exists (
-    select 1 from public.allowed_emails a
-    where lower(a.email) = lower(auth.jwt() ->> 'email')
-  ));
+  using (public.current_user_is_allowed())
+  with check (public.current_user_is_allowed());
 
 -- anciennes policies "anon can insert/update entries" (skill désactivé) :
 -- supprimées si présentes d'une exécution précédente de ce script.
