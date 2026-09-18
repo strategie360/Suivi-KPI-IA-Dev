@@ -61,6 +61,11 @@ npm run dev
 Ouvrez http://localhost:3000 — vous serez redirigé vers `/login`. Connectez-vous avec un
 email présent dans `allowed_emails`.
 
+> Le service d'envoi d'email intégré de Supabase est très limité en débit (quelques emails/heure) —
+> largement suffisant pour un seul test, mais vous tomberez vite sur une erreur `429 Too Many
+> Requests` en itérant. Configurez un SMTP custom (voir plus bas) avant d'ouvrir l'accès à
+> l'équipe.
+
 ### 5. Déploiement Vercel
 
 Sur [vercel.com](https://vercel.com) : *Add New Project* → importez ce dépôt GitHub → dans
@@ -114,6 +119,30 @@ sur le même ticket met à jour la ligne existante au lieu d'en créer une nouve
 
 Le **gain** (estimation − réel, en heures et en %) est calculé à l'affichage et à l'export —
 jamais stocké, pour rester toujours cohérent avec les valeurs saisies.
+
+## Configurer l'envoi d'email (SMTP custom, recommandé)
+
+Le service d'email intégré de Supabase est limité à quelques envois/heure — suffisant pour
+un test isolé, pas pour un usage en équipe. Avant d'ouvrir l'accès, branchez un SMTP externe.
+[Resend](https://resend.com) a un plan gratuit (3 000 emails/mois) largement suffisant ici :
+
+1. Sur resend.com : créez un compte, puis **Domains** → ajoutez votre domaine d'envoi et
+   posez les enregistrements DNS (SPF/DKIM) qu'ils indiquent. Sans domaine vérifié, Resend
+   n'autorise l'envoi qu'à votre propre adresse — pas aux autres membres de l'équipe.
+2. **API Keys** → créez une clé avec l'accès "Sending".
+3. Dans Supabase : **Authentication → Emails → SMTP Settings** → activez *Enable Custom
+   SMTP* et renseignez :
+
+   | Champ | Valeur |
+   |---|---|
+   | Sender email | ex. `noreply@votredomaine.com` (domaine vérifié à l'étape 1) |
+   | Sender name | `Suivi KPI IA Dev` |
+   | Host | `smtp.resend.com` |
+   | Port | `465` |
+   | Username | `resend` |
+   | Password | la clé API Resend de l'étape 2 |
+
+4. Sauvegardez, puis testez le lien magique — la limite du service intégré ne s'applique plus.
 
 ## Gérer les accès
 
