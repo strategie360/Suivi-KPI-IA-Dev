@@ -252,7 +252,7 @@ export default function Dashboard({
     setSaving(false);
 
     if (error) {
-      setFormError("Écriture refusée par la base — droits insuffisants ou policies RLS non à jour.");
+      setFormError(`Écriture refusée par la base (${error.code || "?"}): ${error.message}`);
       return;
     }
 
