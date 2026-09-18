@@ -144,6 +144,24 @@ un test isolé, pas pour un usage en équipe. Avant d'ouvrir l'accès, branchez 
 
 4. Sauvegardez, puis testez le lien magique — la limite du service intégré ne s'applique plus.
 
+## Le lien magique dit "expired" alors qu'il vient d'être reçu
+
+Symptôme : en cliquant sur le lien reçu par email, redirection vers
+`/login#error=access_denied&error_code=otp_expired`. C'est presque toujours dû aux
+passerelles de sécurité des emails d'entreprise (Outlook Safe Links, antivirus mail, etc.) qui
+**pré-cliquent** les liens pour les scanner avant que l'utilisateur ne clique lui-même — ce qui
+consomme le lien à usage unique.
+
+Le dashboard gère déjà ce cas : après avoir demandé un email, un champ apparaît pour saisir
+directement le **code à 6 chiffres** reçu dans le même email (immunisé contre le pré-clic).
+Pour que ce code apparaisse dans l'email, vérifiez que le template Supabase l'inclut :
+**Authentication → Emails → Templates → Magic Link**, ajoutez `{{ .Token }}` quelque part dans
+le corps (il n'y est pas par défaut, seul `{{ .ConfirmationURL }}` y est) :
+
+```html
+<p>Ou saisissez ce code dans l'application : {{ .Token }}</p>
+```
+
 ## Gérer les accès
 
 Ajoutez ou retirez des emails dans `public.allowed_emails` (Supabase Table Editor, ou SQL) :
