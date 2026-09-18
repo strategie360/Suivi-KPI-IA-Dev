@@ -48,6 +48,7 @@ export default function Dashboard({
   const [toast, setToast] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [ticketInput, setTicketInput] = useState("");
   const [estimInput, setEstimInput] = useState("");
   const [docInput, setDocInput] = useState("");
@@ -199,6 +200,33 @@ export default function Dashboard({
     XLSX.writeFile(wb, `suivi-kpi-ia_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
+  function openNewForm() {
+    setEditingId(null);
+    setTicketInput("");
+    setEstimInput("");
+    setDocInput("");
+    setIterInput("");
+    setIaInput("");
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function openEditForm(entry: Entry) {
+    setEditingId(entry.id);
+    setTicketInput(entry.ticket_ref);
+    setEstimInput(String(entry.estimation_h));
+    setDocInput(String(entry.pct_documentation));
+    setIterInput(String(entry.pct_iterations));
+    setIaInput(String(entry.temps_ia_h));
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+  }
+
   async function handleSubmitEntry(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
@@ -231,24 +259,31 @@ export default function Dashboard({
     }
 
     setSaving(true);
-    const today = new Date().toISOString().slice(0, 10);
-    const { error } = await supabase.from("entries").upsert(
-      {
-        ticket_ref: parsedTicket.ticketRef,
-        ticket_title: "",
-        project: parsedTicket.project,
-        developer_name: userEmail,
-        entry_date: today,
-        estimation_h: estimation,
-        temps_reel_h: Math.max(0, estimation - tempsIa),
-        pct_documentation: pctDoc,
-        pct_iterations: pctIter,
-        temps_ia_h: tempsIa,
-        notes: "",
-        source: "web"
-      },
-      { onConflict: "ticket_ref,entry_date,developer_name" }
-    );
+
+    const fields = {
+      ticket_ref: parsedTicket.ticketRef,
+      project: parsedTicket.project,
+      estimation_h: estimation,
+      temps_reel_h: Math.max(0, estimation - tempsIa),
+      pct_documentation: pctDoc,
+      pct_iterations: pctIter,
+      temps_ia_h: tempsIa
+    };
+
+    const { error } = editingId
+      ? await supabase.from("entries").update(fields).eq("id", editingId)
+      : await supabase.from("entries").upsert(
+          {
+            ...fields,
+            ticket_title: "",
+            developer_name: userEmail,
+            entry_date: new Date().toISOString().slice(0, 10),
+            notes: "",
+            source: "web"
+          },
+          { onConflict: "ticket_ref,entry_date,developer_name" }
+        );
+
     setSaving(false);
 
     if (error) {
@@ -256,13 +291,7 @@ export default function Dashboard({
       return;
     }
 
-    setTicketInput("");
-    setEstimInput("");
-    setDocInput("");
-    setIterInput("");
-    setIaInput("");
-    setShowForm(false);
-    setToast(`Saisie enregistrée pour ${parsedTicket.ticketRef}.`);
+    window.location.reload();
   }
 
   async function handleLogout() {
@@ -282,7 +311,7 @@ export default function Dashboard({
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowForm((v) => !v)}
+            onClick={() => (showForm ? closeForm() : openNewForm())}
             className="rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
           >
             + Nouvelle saisie
@@ -307,6 +336,9 @@ export default function Dashboard({
           onSubmit={handleSubmitEntry}
           className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border-2 border-accent bg-surface p-3.5 shadow-sm"
         >
+          <div className="w-full text-sm font-semibold text-text">
+            {editingId ? "Modifier la saisie" : "Nouvelle saisie"}
+          </div>
           <Field label="Ticket Jira (URL ou réf.)" className="min-w-[240px] flex-1">
             <input
               type="text"
@@ -362,7 +394,10 @@ export default function Dashboard({
             disabled={saving}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-60"
           >
-            {saving ? "Enregistrement…" : "Enregistrer"}
+            {saving ? "Enregistrement…" : editingId ? "Modifier" : "Enregistrer"}
+          </button>
+          <button type="button" onClick={closeForm} className="px-2 py-2 text-sm text-text-muted underline hover:text-accent">
+            Annuler
           </button>
           {formError && <p className="w-full text-sm text-bad">{formError}</p>}
         </form>
@@ -527,7 +562,14 @@ export default function Dashboard({
                           {g.gainPct === null ? "–" : (g.gainPct >= 0 ? "+" : "") + fmtPct(g.gainPct)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => openEditForm(e)}
+                          title="Modifier"
+                          className="rounded px-1.5 py-1 text-text-faint transition hover:bg-surface-alt hover:text-accent"
+                        >
+                          ✎
+                        </button>
                         <button
                           onClick={() => handleDelete(e)}
                           title="Supprimer"
