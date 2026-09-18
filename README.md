@@ -153,7 +153,8 @@ passerelles de sécurité des emails d'entreprise (Outlook Safe Links, antivirus
 consomme le lien à usage unique.
 
 Le dashboard gère déjà ce cas : après avoir demandé un email, un champ apparaît pour saisir
-directement le **code à 6 chiffres** reçu dans le même email (immunisé contre le pré-clic).
+directement le **code** reçu dans le même email (immunisé contre le pré-clic ; sa longueur
+dépend du réglage Supabase **Authentication → Providers → Email → OTP Length**, 6 par défaut).
 Pour que ce code apparaisse dans l'email, vérifiez que le template Supabase l'inclut :
 **Authentication → Emails → Templates → Magic Link**, ajoutez `{{ .Token }}` quelque part dans
 le corps (il n'y est pas par défaut, seul `{{ .ConfirmationURL }}` y est) :

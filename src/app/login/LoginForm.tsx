@@ -67,8 +67,8 @@ export default function LoginForm({ next }: { next: string }) {
       <div className="flex flex-col gap-4">
         <div className="rounded-lg border border-border bg-surface-alt px-4 py-3 text-sm text-text">
           Email envoyé à <span className="font-mono">{email}</span>. Ouvrez le lien depuis
-          votre boîte mail, <strong>ou</strong> saisissez le code à 6 chiffres reçu dans le
-          même email ci-dessous.
+          votre boîte mail, <strong>ou</strong> saisissez le code reçu dans le même email
+          ci-dessous.
         </div>
 
         <form onSubmit={handleVerifyCode} className="flex flex-col gap-3">
@@ -81,11 +81,11 @@ export default function LoginForm({ next }: { next: string }) {
               type="text"
               inputMode="numeric"
               autoFocus
-              maxLength={6}
+              maxLength={12}
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="123456"
-              className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-center font-mono text-lg tracking-[0.3em] text-text outline-none focus:ring-2 focus:ring-accent"
+              onChange={(e) => setCode(e.target.value.trim())}
+              placeholder="Code reçu par email"
+              className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-center font-mono text-lg tracking-[0.2em] text-text outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
           <button
