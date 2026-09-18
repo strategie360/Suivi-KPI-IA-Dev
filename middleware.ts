@@ -26,9 +26,15 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // getSession() reads/decodes the JWT already in cookies with no network call —
+  // getUser() would re-validate against Supabase's API on every request, which
+  // breaks in dev environments where Node's outbound fetch can't reach it
+  // (corporate proxy) even though the browser can. Trade-off: a revoked-but-
+  // not-yet-expired token stays accepted until it expires; acceptable here.
   const {
-    data: { user }
-  } = await supabase.auth.getUser();
+    data: { session }
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
