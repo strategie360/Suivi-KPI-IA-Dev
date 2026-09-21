@@ -4,6 +4,11 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login", "/auth/callback"];
 
 export async function middleware(request: NextRequest) {
+  // Mode démo (NEXT_PUBLIC_MOCK=1) : ni Supabase ni login, on laisse tout passer.
+  if (process.env.NEXT_PUBLIC_MOCK === "1") {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(
